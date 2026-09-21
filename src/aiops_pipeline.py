@@ -14,15 +14,12 @@ def load_data(file_path):
 def run_pipeline(file_path):
     data = load_data(file_path)
 
-    # INTENTIONAL ASSESSMENT ISSUE #2
-    producer_topic = EventTopic("service-events")
+    anomaly_topic = EventTopic("anomaly-events")
 
     detector = AnomalyDetector()
-    producer = EventProducer(producer_topic)
+    producer = EventProducer(anomaly_topic)
 
-    # INTENTIONAL ASSESSMENT ISSUE #3
-    consumer_topic = EventTopic("anomaly-events")
-    consumer = EventConsumer(consumer_topic)
+    consumer = EventConsumer(anomaly_topic)
 
     detected_events = []
 
@@ -42,7 +39,7 @@ def run_pipeline(file_path):
     }
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     result = run_pipeline("data/service_data.json")
 
     print("=" * 50)

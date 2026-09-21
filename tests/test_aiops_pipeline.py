@@ -1,4 +1,5 @@
-from pathlib import Path
+import subprocess
+import sys
 
 from src.anomaly_detector import AnomalyDetector
 from src.aiops_pipeline import run_pipeline
@@ -42,6 +43,25 @@ def test_anomalous_record_is_detected():
     assert event["type"] == "ANOMALY"
 
 
+def test_error_log_is_detected():
+    detector = AnomalyDetector()
+
+    record = {
+        "timestamp": "2026-09-20T10:05:00",
+        "service": "payment-service",
+        "response_time_ms": 120,
+        "cpu_percent": 42,
+        "memory_percent": 51,
+        "log_level": "ERROR",
+        "message": "Payment service timeout"
+    }
+
+    event = detector.detect(record)
+
+    assert event is not None
+    assert "Error log detected" in event["reasons"]
+
+
 def test_producer_publishes_event():
     topic = EventTopic("anomaly-events")
     producer = EventProducer(topic)
@@ -53,6 +73,14 @@ def test_producer_publishes_event():
 
     assert producer.publish(event)
     assert len(topic.get_messages()) == 1
+
+
+def test_producer_rejects_empty_event():
+    topic = EventTopic("anomaly-events")
+    producer = EventProducer(topic)
+
+    assert producer.publish(None) is False
+    assert topic.get_messages() == []
 
 
 def test_consumer_receives_event():
@@ -70,3 +98,33 @@ def test_consumer_receives_event():
     messages = consumer.consume()
 
     assert len(messages) == 1
+
+
+def test_pipeline_consumes_detected_events():
+    result = run_pipeline("data/service_data.json")
+
+    assert result["records_processed"] == 10
+    assert len(result["anomalies_detected"]) == 2
+    assert len(result["events_consumed"]) == 2
+
+
+def test_topic_can_be_cleared():
+    topic = EventTopic("anomaly-events")
+    topic.publish({"type": "ANOMALY"})
+
+    topic.clear()
+
+    assert topic.get_messages() == []
+
+
+def test_pipeline_cli_prints_results():
+    completed = subprocess.run(
+        [sys.executable, "-m", "src.aiops_pipeline"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    output = completed.stdout
+    assert "Records processed: 10" in output
+    assert "Events consumed: 2" in output
